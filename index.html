@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>MediSort — Your Medicine Companion</title>
+<link rel="manifest" href="manifest.json"/>
+<link rel="icon" type="image/png" href="image1.png"/>
+<script>
+  if ('serviceWorker' in navigator)
+    navigator.serviceWorker.register('/sw.js');
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut,
+           onAuthStateChanged, createUserWithEmailAndPassword,
+           signInWithEmailAndPassword }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  /* ── Replace with your Firebase config ── */
+  const firebaseConfig = {
+    apiKey:"AIzaSyBjNotunuqpnZnipv5zycnb9wLx6-xsxGc", 
+    authDomain:"medicine-sorting-app.firebaseapp.com",
+    projectId:"medicine-sorting-app", 
+    storageBucket:"medicine-sorting-app.firebasestorage.app",
+    messagingSenderId:"957464592460", 
+    appId:"1:957464592460:web:cae6b4e9ab4ac7dafdb4e9"
+  };
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const googleProvider = new GoogleAuthProvider();
+  window.firebaseAuth = { auth, googleProvider, signInWithPopup, signOut,
+    onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword };
+  document.dispatchEvent(new Event('firebaseReady'));
+</script>
+
+<style>
+/* ════════════════════════════════════════════
+   RESET & TOKENS
+════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --teal:#10b981; --teal-dk:#059669; --teal-lt:#d1fae5;
+  --coral:#f97316; --coral-dk:#ea580c;
+  --amber:#f59e0b;
+  --red:#ef4444;   --red-lt:#fee2e2;
+  --green:#22c55e; --green-lt:#dcfce7;
+  --ink:#064e3b;   --slate:#374151; --muted:#6b7280;
+  --bg:#f0fdf9;    --card:#ffffff;  --border:#d1fae5;
+  --shadow:0 2px 16px rgba(16,185,129,.10);
+  --shadow-lg:0 8px 40px rgba(16,185,129,.18);
+  --r:14px; --r-sm:8px;
+  font-family:'DM Sans',sans-serif;
+  color:var(--ink);
+}
+html,body{height:100%;background:var(--bg);}
+h1,h2,h3,h4,label.section-label{font-family:'Nunito',sans-serif;}
+button{cursor:pointer;font-family:inherit;}
+input,select{font-family:inherit;}
+::-webkit-scrollbar{width:6px;}
+::-webkit-scrollbar-thumb{background:#a7f3d0;border-radius:6px;}
+
+/* ════════════════════════════════════════════
+   LOGIN SCREEN
+════════════════════════════════════════════ */
+#sign-in-screen{
+  min-height:100vh;
+  background:linear-gradient(140deg,#064e3b 0%,#059669 45%,#10b981 100%);
+  display:flex; align-items:center; justify-content:center;
+  position:relative; overflow:hidden;
+}
+
+/* floating mascots background */
+.mascot-bg{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
+.mascot{position:absolute;animation:floatUp linear infinite;will-change:transform;}
+@keyframes floatUp{
+  0%  {transform:translateY(110vh) rotate(0deg)  scale(1);}
+  50% {transform:translateY(50vh)  rotate(180deg) scale(1.1);}
+  100%{transform:translateY(-15vh) rotate(360deg) scale(1);}
+}
+
+.login-card{
+  background:#fff; border-radius:28px;
+  padding:44px 40px 40px; width:100%; max-width:420px;
+  box-shadow:0 24px 80px rgba(0,0,0,.22);
+  position:relative; z-index:10;
+  animation:slideUp .5s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes slideUp{from{opacity:0;transform:translateY(32px);}to{opacity:1;transform:none;}}
+
+.login-logo{text-align:center;margin-bottom:20px;}
+.login-logo .logo-icon{font-size:3rem;display:block;animation:pulse 2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
+.login-logo h1{font-size:1.9rem;font-weight:900;color:var(--teal-dk);margin-top:6px;}
+.login-logo p{color:var(--muted);font-size:.9rem;margin-top:4px;}
+
+.login-card h2{
+  font-size:1.5rem;font-weight:800;text-align:center;
+  color:var(--ink);margin-bottom:24px;
+}
+
+.btn-google{
+  width:100%;padding:13px;border:1.5px solid #e5e7eb;background:#fff;
+  border-radius:var(--r);display:flex;align-items:center;justify-content:center;
+  gap:10px;font-size:.95rem;font-weight:600;color:var(--slate);
+  transition:background .18s,box-shadow .18s;
+}
+.btn-google:hover{background:#f9fafb;box-shadow:var(--shadow);}
+.btn-google img{width:20px;}
+
+.divider{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--muted);font-size:.85rem;}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:#e5e7eb;}
+
+#email-form{flex-direction:column;gap:12px;}
+.input-wrap{position:relative;}
+.input-wrap input{
+  width:100%;padding:12px 14px 12px 40px;
+  border:1.5px solid #e5e7eb;border-radius:var(--r-sm);
+  font-size:.95rem;outline:none;
+  transition:border-color .18s;
+}
+.input-wrap input:focus{border-color:var(--teal);}
+.input-wrap .ico{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:1rem;color:var(--muted);}
+
+.btn-primary{
+  width:100%;padding:13px;background:linear-gradient(90deg,var(--teal),var(--teal-dk));
+  color:#fff;border:none;border-radius:var(--r);
+  font-size:1rem;font-weight:700;
+  transition:filter .18s,transform .12s;
+}
+.btn-primary:hover{filter:brightness(1.06);transform:translateY(-1px);}
+.btn-primary:active{transform:translateY(0);}
+
+#email-signin-btn{
+  width:100%;padding:11px;background:var(--teal-lt);color:var(--teal-dk);
+  border:1.5px solid var(--teal);border-radius:var(--r);
+  font-size:.9rem;font-weight:700;margin-top:4px;
+  transition:background .18s;
+}
+#email-signin-btn:hover{background:#a7f3d0;}
+
+.toggle-txt{text-align:center;margin-top:16px;font-size:.88rem;color:var(--muted);}
+.toggle-txt a{color:var(--teal-dk);font-weight:700;text-decoration:none;}
+.toggle-txt a:hover{text-decoration:underline;}
+
+/* ════════════════════════════════════════════
+   DASHBOARD SHELL
+════════════════════════════════════════════ */
+#dashboard{display:none;min-height:100vh;flex-direction:column;}
+
+/* TOP NAV */
+.topnav{
+  position:sticky;top:0;z-index:100;
+  background:#fff;
+  border-bottom:1.5px solid var(--border);
+  box-shadow:0 2px 12px rgba(16,185,129,.08);
+  padding:0 24px;
+  display:flex;align-items:center;gap:0;height:64px;
+}
+.nav-brand{
+  display:flex;align-items:center;gap:10px;
+  font-family:'Nunito',sans-serif;font-size:1.25rem;font-weight:900;
+  color:var(--teal-dk);text-decoration:none;margin-right:32px;flex-shrink:0;
+}
+.nav-brand .brand-icon{font-size:1.6rem;}
+
+.nav-tabs{display:flex;align-items:center;gap:2px;flex:1;}
+.nav-tab{
+  display:flex;align-items:center;gap:6px;
+  padding:8px 16px;border-radius:var(--r-sm);
+  border:none;background:none;
+  font-size:.9rem;font-weight:600;color:var(--muted);
+  transition:background .18s,color .18s;
+  white-space:nowrap;
+}
+.nav-tab:hover{background:var(--teal-lt);color:var(--teal-dk);}
+.nav-tab.active{background:var(--teal-lt);color:var(--teal-dk);}
+.nav-tab .tab-icon{font-size:1rem;}
+
+.nav-user{
+  display:flex;align-items:center;gap:10px;margin-left:auto;flex-shrink:0;
+}
+#user-photo{width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid var(--teal);display:none;}
+#current-user-name{font-size:.85rem;font-weight:600;color:var(--slate);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#logout-btn{
+  padding:7px 16px;background:var(--teal-lt);color:var(--teal-dk);
+  border:1.5px solid var(--teal);border-radius:var(--r-sm);
+  font-size:.85rem;font-weight:700;
+  transition:background .18s;
+}
+#logout-btn:hover{background:#a7f3d0;}
+
+/* MAIN CONTENT */
+.main-content{flex:1;padding:28px 24px;max-width:900px;margin:0 auto;width:100%;}
+
+/* SECTIONS */
+.section{display:none;}
+.section.active{display:block;}
+
+/* SECTION HEADER */
+.section-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:20px;flex-wrap:wrap;gap:10px;
+}
+.section-header h2{font-size:1.4rem;font-weight:800;color:var(--ink);}
+.section-label{font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:block;}
+
+/* CARD */
+.card{
+  background:var(--card);border-radius:var(--r);
+  border:1.5px solid var(--border);
+  box-shadow:var(--shadow);
+  padding:20px;margin-bottom:16px;
+}
+
+/* PROFILES */
+.profiles-wrap{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+.profile-btn{
+  padding:8px 20px;border-radius:40px;
+  border:2px solid var(--border);background:#fff;
+  font-size:.9rem;font-weight:700;color:var(--slate);
+  transition:all .18s;
+}
+.profile-btn:hover{border-color:var(--teal);color:var(--teal-dk);}
+.profile-btn.active-profile{background:var(--teal);border-color:var(--teal);color:#fff;}
+.add-profile-row{display:flex;gap:8px;}
+.add-profile-row input{
+  flex:1;padding:10px 14px;border:1.5px solid #e5e7eb;
+  border-radius:var(--r-sm);font-size:.9rem;outline:none;
+  transition:border-color .18s;
+}
+.add-profile-row input:focus{border-color:var(--teal);}
+.btn-add{
+  padding:10px 20px;background:var(--teal);color:#fff;
+  border:none;border-radius:var(--r-sm);font-weight:700;font-size:.9rem;
+  transition:filter .18s;
+}
+.btn-add:hover{filter:brightness(1.08);}
+
+/* MED ITEMS */
+.med-item{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  gap:10px;padding:14px 16px;border-radius:var(--r-sm);
+  background:#f9fffe;border:1.5px solid var(--border);
+  margin-bottom:10px;transition:box-shadow .18s,border-color .2s;
+  position:relative;overflow:hidden;
+}
+.med-item::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
+  background:var(--border);border-radius:4px 0 0 4px;
+  transition:background .2s;
+}
+.med-item.status-taken::before{background:var(--green);}
+.med-item.status-missed::before{background:var(--red);}
+.med-item:hover{box-shadow:var(--shadow);}
+.med-info{flex:1;min-width:0;}
+.med-name{display:block;font-family:'Nunito',sans-serif;font-size:1rem;font-weight:800;color:var(--ink);}
+.med-sub{display:block;font-size:.8rem;color:var(--muted);margin-top:2px;}
+.med-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+
+/* taken/missed toggle */
+.taken-btn,.missed-btn{
+  padding:5px 12px;border-radius:20px;font-size:.78rem;font-weight:700;border:none;
+  transition:background .15s,transform .1s,box-shadow .15s;
+}
+.taken-btn{background:var(--green-lt);color:#15803d;}
+.taken-btn:hover{background:#86efac;color:#14532d;transform:scale(1.05);}
+.taken-btn.active{background:var(--green);color:#fff;transform:scale(1.06);box-shadow:0 0 0 3px rgba(34,197,94,.25);}
+.missed-btn{background:var(--red-lt);color:#b91c1c;}
+.missed-btn:hover{background:#fca5a5;color:#7f1d1d;transform:scale(1.05);}
+.missed-btn.active{background:var(--red);color:#fff;transform:scale(1.06);box-shadow:0 0 0 3px rgba(239,68,68,.25);}
+
+.remove-btn{
+  padding:5px 12px;border-radius:20px;font-size:.78rem;font-weight:700;
+  background:none;border:1.5px solid var(--red);color:var(--red);
+  transition:background .15s,color .15s;
+}
+.remove-btn:hover{background:var(--red);color:#fff;}
+
+/* SCAN SECTION */
+.scan-drop{
+  border:2.5px dashed var(--teal);border-radius:var(--r);
+  padding:36px 20px;text-align:center;cursor:pointer;
+  background:#f0fdf9;transition:background .18s;
+  position:relative;
+}
+.scan-drop:hover{background:#d1fae5;}
+.scan-drop input[type=file]{
+  position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;
+}
+.scan-icon{font-size:2.8rem;margin-bottom:8px;}
+.scan-drop p{color:var(--muted);font-size:.9rem;}
+.scan-drop strong{color:var(--teal-dk);}
+
+#loading{
+  display:none;margin-top:16px;text-align:center;
+  color:var(--teal-dk);font-weight:700;
+}
+.spinner{
+  display:inline-block;width:22px;height:22px;
+  border:3px solid var(--teal-lt);
+  border-top-color:var(--teal);border-radius:50%;
+  animation:spin .7s linear infinite;vertical-align:middle;margin-right:8px;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.parsed-result{
+  margin-top:16px;border-radius:var(--r);
+  background:#f0fdf9;border:1.5px solid var(--border);padding:16px;
+}
+.parsed-row{display:flex;gap:8px;margin-bottom:8px;font-size:.9rem;}
+.parsed-row strong{color:var(--teal-dk);min-width:110px;flex-shrink:0;}
+.parsed-row span{color:var(--slate);}
+.btn-save-scanned{
+  margin-top:12px;width:100%;padding:12px;
+  background:linear-gradient(90deg,var(--teal),var(--teal-dk));
+  color:#fff;border:none;border-radius:var(--r-sm);
+  font-size:1rem;font-weight:700;display:none;
+  transition:filter .18s;
+}
+.btn-save-scanned:hover{filter:brightness(1.08);}
+
+/* REMINDERS SECTION */
+.reminder-card{
+  background:#fff;border-radius:var(--r);
+  border:1.5px solid var(--border);padding:16px 18px;
+  margin-bottom:12px;display:flex;align-items:center;
+  gap:14px;flex-wrap:wrap;
+}
+.reminder-med-name{font-family:'Nunito',sans-serif;font-weight:800;font-size:1rem;color:var(--ink);flex:1;min-width:120px;}
+.time-slots{display:flex;gap:8px;flex-wrap:wrap;}
+.time-slot-input{
+  padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--r-sm);
+  font-size:.85rem;outline:none;width:110px;
+  transition:border-color .18s;
+}
+.time-slot-input:focus{border-color:var(--teal);}
+.email-alert-row{
+  display:flex;gap:10px;align-items:center;
+  margin-top:12px;flex-wrap:wrap;
+}
+.email-alert-row input{
+  flex:1;padding:10px 14px;border:1.5px solid #e5e7eb;
+  border-radius:var(--r-sm);font-size:.9rem;outline:none;
+  transition:border-color .18s;
+}
+.email-alert-row input:focus{border-color:var(--teal);}
+.btn-save-reminder{
+  padding:9px 20px;background:var(--coral);color:#fff;border:none;
+  border-radius:var(--r-sm);font-weight:700;font-size:.88rem;
+  transition:filter .18s;
+}
+.btn-save-reminder:hover{filter:brightness(1.08);}
+
+/* CALENDAR SECTION */
+.cal-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:20px;
+}
+.cal-header h3{font-family:'Nunito',sans-serif;font-size:1.2rem;font-weight:800;color:var(--ink);}
+.cal-nav{
+  display:flex;gap:8px;
+}
+.cal-nav button{
+  width:34px;height:34px;border-radius:50%;
+  border:1.5px solid var(--border);background:#fff;
+  font-size:1rem;color:var(--slate);
+  transition:background .18s,border-color .18s;
+}
+.cal-nav button:hover{background:var(--teal-lt);border-color:var(--teal);}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+.cal-day-label{
+  text-align:center;font-size:.75rem;font-weight:700;
+  color:var(--muted);padding:6px 0;
+  font-family:'Nunito',sans-serif;
+}
+.cal-day{
+  aspect-ratio:1;border-radius:var(--r-sm);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-size:.85rem;font-weight:700;position:relative;
+  border:1.5px solid #e2e8f0;
+  background:#f8fafc;
+  color:#94a3b8;
+  transition:transform .15s,box-shadow .15s;
+  cursor:default;
+}
+.cal-day.has-data{cursor:pointer;}
+.cal-day.has-data:hover{transform:scale(1.06);box-shadow:var(--shadow);}
+.cal-day.empty{background:transparent;border:none;}
+.cal-day.future{background:#f8fafc;color:#cbd5e1;border-color:#e2e8f0;}
+.cal-day.today{border:2.5px solid var(--teal);background:#f0fdf9;color:var(--teal-dk);font-weight:900;}
+.cal-day.taken{background:var(--green-lt);border-color:#4ade80;color:#15803d;}
+.cal-day.missed{background:var(--red-lt);border-color:#f87171;color:#b91c1c;}
+.cal-day.partial{background:#fef3c7;border-color:#fbbf24;color:#92400e;}
+.cal-day.no-data{background:#f8fafc;color:#94a3b8;border-color:#e2e8f0;}
+/* Today + taken: green bg WITH teal highlight ring */
+.cal-day.taken-today{background:var(--green-lt);border:3px solid var(--teal);color:#15803d;font-weight:900;box-shadow:0 0 0 3px rgba(16,185,129,.25);}
+.cal-badge{font-size:.85rem;line-height:1;}
+.cal-num{font-size:.72rem;margin-top:1px;font-weight:700;}
+.cal-legend{
+  display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;
+  justify-content:center;
+}
+.cal-legend-item{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--slate);}
+.cal-legend-dot{width:12px;height:12px;border-radius:3px;}
+
+/* ACTION BUTTONS ROW */
+.action-row{display:flex;gap:8px;flex-wrap:wrap;}
+.btn-outline{
+  padding:8px 18px;border-radius:var(--r-sm);
+  border:1.5px solid var(--teal);background:#fff;
+  color:var(--teal-dk);font-weight:700;font-size:.88rem;
+  transition:background .18s;
+}
+.btn-outline:hover{background:var(--teal-lt);}
+
+/* EMPTY STATE */
+.empty-state{
+  text-align:center;padding:36px 20px;
+  color:var(--muted);
+}
+.empty-state .empty-icon{font-size:2.8rem;margin-bottom:10px;}
+.empty-state p{font-size:.9rem;}
+
+/* RESPONSIVE */
+@media(max-width:620px){
+  .topnav{padding:0 12px;gap:0;}
+  .nav-brand{margin-right:12px;font-size:1rem;}
+  .nav-tab{padding:8px 10px;font-size:.8rem;}
+  .nav-tab .tab-label{display:none;}
+  #current-user-name{display:none;}
+  .main-content{padding:16px 12px;}
+  .cal-grid{gap:3px;}
+  .cal-day{font-size:.72rem;}
+}
+
+/* ── MANUAL ENTRY MODAL ── */
+.modal-backdrop{
+  position:fixed;inset:0;background:rgba(0,0,0,.5);
+  z-index:8000;display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .2s ease;pointer-events:none;
+}
+.modal-backdrop.open{opacity:1;pointer-events:all;}
+.modal-box{
+  background:#fff;border-radius:20px;
+  padding:32px 28px 24px;width:100%;max-width:440px;
+  box-shadow:0 12px 48px rgba(0,0,0,.2);
+  transform:translateY(20px) scale(.95);
+  transition:transform .22s cubic-bezier(.34,1.56,.64,1);
+}
+.modal-backdrop.open .modal-box{transform:none;}
+.modal-box h3{
+  font-family:'Nunito',sans-serif;font-size:1.25rem;
+  font-weight:800;color:#064e3b;margin-bottom:20px;
+}
+.modal-field{margin-bottom:14px;}
+.modal-field label{
+  display:block;font-size:.78rem;font-weight:700;
+  color:#6b7280;text-transform:uppercase;letter-spacing:.05em;
+  margin-bottom:5px;
+}
+.modal-input{
+  width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;
+  border-radius:10px;font-size:.95rem;outline:none;
+  transition:border-color .18s;font-family:inherit;color:#064e3b;
+}
+.modal-input:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.1);}
+.modal-input.error{border-color:#ef4444;}
+.modal-row{display:flex;gap:12px;}
+.modal-row .modal-field{flex:1;}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:6px;}
+.modal-cancel{
+  padding:10px 22px;border:1.5px solid #e5e7eb;border-radius:10px;
+  background:#fff;color:#6b7280;font-weight:700;font-size:.9rem;
+  transition:background .15s;cursor:pointer;font-family:inherit;
+}
+.modal-cancel:hover{background:#f9fafb;}
+.modal-ok{
+  padding:10px 28px;border:none;border-radius:10px;
+  background:linear-gradient(90deg,#10b981,#059669);color:#fff;
+  font-weight:700;font-size:.9rem;
+  transition:filter .15s;cursor:pointer;font-family:inherit;
+}
+.modal-ok:hover{filter:brightness(1.08);}
+
+/* ── PROFILE DELETE BUTTON ── */
+.profile-wrap{display:inline-flex;align-items:center;gap:0;margin:0 6px 6px 0;}
+.profile-del{
+  width:22px;height:22px;border-radius:50%;
+  border:1.5px solid #fca5a5;background:#fff;
+  color:#ef4444;font-size:.7rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;margin-left:-1px;
+  transition:background .15s,color .15s;
+  flex-shrink:0;
+}
+.profile-del:hover{background:#ef4444;color:#fff;}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     SIGN-IN SCREEN
+══════════════════════════════════════════ -->
+<div id="sign-in-screen">
+  <!-- Floating medicine mascots -->
+  <div class="mascot-bg" id="mascot-bg"></div>
+
+  <div class="login-card">
+    <div class="login-logo">
+      <span class="logo-icon">💊</span>
+      <h1>MediSort</h1>
+      <p>Your smart medicine companion</p>
+    </div>
+    <h2 id="login-title">Welcome Back!</h2>
+
+    <!-- Google -->
+    <button class="btn-google" id="google-btn">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G"/>
+      Sign in with Google
+    </button>
+
+    <div class="divider">or sign in with email</div>
+
+    <!-- Email toggle -->
+    <button id="email-signin-btn">Continue with Email</button>
+
+    <!-- Email form (hidden by default) -->
+    <form id="email-form" style="display:none;flex-direction:column;gap:12px;margin-top:12px;">
+      <div class="input-wrap">
+        <span class="ico">📧</span>
+        <input type="email" id="email-input" placeholder="you@example.com" autocomplete="email"/>
+      </div>
+      <div class="input-wrap">
+        <span class="ico">🔒</span>
+        <input type="password" id="password-input" placeholder="Minimum 6 characters" autocomplete="current-password"/>
+      </div>
+      <button type="button" class="btn-primary" id="signin-btn">Sign In</button>
+    </form>
+
+    <p class="toggle-txt">
+      Don't have an account?
+      <a href="#" id="toggle-link">Register here</a>
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     DASHBOARD
+══════════════════════════════════════════ -->
+<div id="dashboard" style="display:none;flex-direction:column;">
+
+  <!-- TOP NAV -->
+  <nav class="topnav">
+    <span class="nav-brand"><span class="brand-icon">💊</span>MediSort</span>
+
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-tab="today">
+        <span class="tab-icon">🏠</span><span class="tab-label">Today</span>
+      </button>
+      <button class="nav-tab" data-tab="scan">
+        <span class="tab-icon">📷</span><span class="tab-label">Scan</span>
+      </button>
+      <button class="nav-tab" data-tab="reminders">
+        <span class="tab-icon">⏰</span><span class="tab-label">Reminders</span>
+      </button>
+      <button class="nav-tab" data-tab="calendar">
+        <span class="tab-icon">📅</span><span class="tab-label">Calendar</span>
+      </button>
+      <button class="nav-tab" data-tab="profiles">
+        <span class="tab-icon">👤</span><span class="tab-label">Profiles</span>
+      </button>
+    </div>
+
+    <div class="nav-user">
+      <img id="user-photo" src="" alt="avatar"/>
+      <span id="current-user-name">Guest</span>
+      <button id="logout-btn">Logout</button>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <div class="main-content">
+
+    <!-- ── TODAY ── -->
+    <div class="section active" id="sec-today">
+      <div class="section-header">
+        <h2>Today's Medicines</h2>
+        <div class="action-row">
+          <button class="btn-outline" onclick="window.manualEntry()">+ Manual</button>
+          <button class="btn-outline" onclick="window.voiceInput()">🎤 Voice</button>
+        </div>
+      </div>
+      <div id="today-list">
+        <div class="empty-state">
+          <div class="empty-icon">💊</div>
+          <p>Select a profile to view medicines.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCAN ── -->
+    <div class="section" id="sec-scan">
+      <div class="section-header"><h2>Scan Medicine Label</h2></div>
+      <div class="card">
+        <div class="scan-drop">
+          <input type="file" id="image-input" accept="image/*"/>
+          <div class="scan-icon">📸</div>
+          <strong>Tap to upload a photo</strong>
+          <p>We'll extract the medicine details automatically</p>
+        </div>
+        <div id="loading"><span class="spinner"></span>Scanning label…</div>
+        <div id="results" class="parsed-result" style="display:none;">
+          <div class="parsed-row"><strong>Medicine:</strong><span id="med-name">-</span></div>
+          <div class="parsed-row"><strong>Manufacturer:</strong><span id="med-manu">-</span></div>
+          <div class="parsed-row"><strong>Mfg Date:</strong><span id="med-mfg">-</span></div>
+          <div class="parsed-row"><strong>Exp Date:</strong><span id="med-exp">-</span></div>
+        </div>
+        <button class="btn-save-scanned" id="save-med">💾 Save this Medicine</button>
+      </div>
+    </div>
+
+    <!-- ── REMINDERS ── -->
+    <div class="section" id="sec-reminders">
+      <div class="section-header"><h2>Dose Reminders</h2></div>
+
+      <!-- Alert email setup -->
+      <div class="card">
+        <label class="section-label">Alert Email (for missed doses)</label>
+        <div class="email-alert-row">
+          <input type="email" id="alert-email" placeholder="Enter email to receive missed-dose alerts"/>
+          <button class="btn-save-reminder" id="save-alert-email">Save</button>
+        </div>
+
+      </div>
+
+      <!-- Per-medicine time slots -->
+      <div id="reminder-list">
+        <div class="empty-state">
+          <div class="empty-icon">⏰</div>
+          <p>Save medicines first, then set reminder times here.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CALENDAR ── -->
+    <div class="section" id="sec-calendar">
+      <div class="section-header"><h2>Medicine Tracker</h2></div>
+      <div class="card">
+        <div class="cal-header">
+          <h3 id="cal-month-label">March 2026</h3>
+          <div class="cal-nav">
+            <button id="cal-prev">‹</button>
+            <button id="cal-next">›</button>
+          </div>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+        <div class="cal-legend">
+          <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#dcfce7;border:1.5px solid #86efac;"></div>✅ All taken</div>
+          <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#fee2e2;border:1.5px solid #fca5a5;"></div>❌ Not taken (default)</div>
+          <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#fef3c7;border:1.5px solid #fcd34d;"></div>~ Partial</div>
+          <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#f9fafb;border:1.5px solid #e5e7eb;"></div>No medicines added</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PROFILES ── -->
+    <div class="section" id="sec-profiles">
+      <div class="section-header"><h2>Profiles</h2></div>
+      <div class="card">
+        <label class="section-label">Select a Profile</label>
+        <div class="profiles-wrap" id="profiles-row"></div>
+        <label class="section-label" style="margin-top:16px;">Add New Profile</label>
+        <div class="add-profile-row">
+          <input type="text" id="new-profile-name" placeholder="e.g. Dad, Mum, Me…"/>
+          <button class="btn-add" id="add-profile-btn">Add</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main-content -->
+</div><!-- /dashboard -->
+
+<!-- hidden legacy wrapper (script.js uses medicineSection) -->
+<div id="medicine-section" style="display:none;"></div>
+
+<script src="script.js"></script>
+<script>
+/* ── Mascot generator ── */
+(function(){
+  const mascots=[
+    // pill
+    `<svg viewBox="0 0 52 26" width="52" height="26"><rect x="0" y="0" width="26" height="26" rx="13" fill="#f97316"/><rect x="26" y="0" width="26" height="26" rx="13" fill="#fff" stroke="#e5e7eb" stroke-width="1"/><circle cx="16" cy="11" r="2" fill="#fff"/><circle cx="36" cy="11" r="2" fill="#f97316"/><path d="M12 17 Q16 20 20 17" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M32 17 Q36 20 40 17" stroke="#f97316" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>`,
+    // capsule
+    `<svg viewBox="0 0 36 64" width="36" height="64"><rect x="0" y="0" width="36" height="32" rx="18" fill="#10b981"/><rect x="0" y="32" width="36" height="32" rx="18" fill="#fff" stroke="#e5e7eb" stroke-width="1"/><circle cx="14" cy="18" r="2.5" fill="#fff"/><circle cx="22" cy="18" r="2.5" fill="#fff"/><path d="M11 25 Q18 30 25 25" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="14" cy="48" r="2.5" fill="#10b981"/><circle cx="22" cy="48" r="2.5" fill="#10b981"/></svg>`,
+    // bottle
+    `<svg viewBox="0 0 40 60" width="40" height="60"><rect x="12" y="0" width="16" height="8" rx="3" fill="#6366f1"/><rect x="6" y="8" width="28" height="4" rx="2" fill="#818cf8"/><rect x="4" y="12" width="32" height="44" rx="8" fill="#818cf8"/><rect x="4" y="12" width="32" height="44" rx="8" fill="url(#bg)" opacity=".3"/><circle cx="16" cy="32" r="3" fill="#fff"/><circle cx="24" cy="32" r="3" fill="#fff"/><path d="M13 40 Q20 46 27 40" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><rect x="14" y="20" width="12" height="6" rx="2" fill="#fff" opacity=".6"/></svg>`,
+    // heart
+    `<svg viewBox="0 0 44 44" width="44" height="44"><path d="M22 38 C22 38 4 28 4 16 C4 10 8 6 14 6 C17 6 20 8 22 11 C24 8 27 6 30 6 C36 6 40 10 40 16 C40 28 22 38 22 38Z" fill="#f97316"/><path d="M16 22 H28 M22 16 V28" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>`,
+    // star
+    `<svg viewBox="0 0 48 48" width="48" height="48"><polygon points="24,4 29,18 44,18 32,28 37,42 24,33 11,42 16,28 4,18 19,18" fill="#f59e0b"/><circle cx="20" cy="24" r="2" fill="#fff"/><circle cx="28" cy="24" r="2" fill="#fff"/><path d="M18 30 Q24 35 30 30" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`,
+  ];
+  const bg = document.getElementById('mascot-bg');
+  for(let i=0;i<18;i++){
+    const div=document.createElement('div');
+    div.className='mascot';
+    div.innerHTML=mascots[i%mascots.length];
+    div.style.cssText=`
+      left:${Math.random()*95}%;
+      bottom:-80px;
+      animation-duration:${8+Math.random()*14}s;
+      animation-delay:${-Math.random()*20}s;
+      opacity:${0.12+Math.random()*0.18};
+      transform:scale(${0.7+Math.random()*0.8});
+    `;
+    bg.appendChild(div);
+  }
+})();
+</script>
+
+<!-- ── MANUAL ENTRY MODAL ── -->
+<div class="modal-backdrop" id="manual-modal">
+  <div class="modal-box">
+    <h3>💊 Add Medicine</h3>
+    <div class="modal-field">
+      <label>Medicine Name *</label>
+      <input class="modal-input" id="manual-name" type="text" placeholder="e.g. Flexon, Paracetamol…" autocomplete="off"/>
+    </div>
+    <div class="modal-field">
+      <label>Manufacturer</label>
+      <input class="modal-input" id="manual-mfr" type="text" placeholder="e.g. Cipla, Sun Pharma…" autocomplete="off"/>
+    </div>
+    <div class="modal-row">
+      <div class="modal-field">
+        <label>Mfg Date</label>
+        <input class="modal-input" id="manual-mfg" type="text" placeholder="e.g. JAN.24"/>
+      </div>
+      <div class="modal-field">
+        <label>Expiry Date</label>
+        <input class="modal-input" id="manual-exp" type="text" placeholder="e.g. DEC.26"/>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" id="manual-cancel">Cancel</button>
+      <button class="modal-ok" id="manual-ok">Add Medicine</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
